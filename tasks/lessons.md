@@ -23,7 +23,7 @@ Chromium の canvas captureStream トラックに `applyConstraints({ advanced: 
 
 ## 大きなコード片はシェルの heredoc で書かない
 
-200 行規模の JavaScript を `cat > file <<'EOF'` で書こうとして `unexpected EOF while looking for matching '` で失敗し、ファイルが 0 バイトも作られなかった。クォートされた heredoc は本来リテラルだが、コマンド全体が別の層を経由すると引用の解釈がずれる。
+200 行規模の JavaScript を `cat > file <<'EOF'` で書こうとして `unexpected EOF while looking for matching '` で失敗し、ファイルが 0 バイトも作られなかった。同じ書き方で数十行のファイルは 6 回とも成功していたので、差は分量だけ。原因は特定していない。
 
 **汎用化**: 引用符・バッククォート・`$` が密に混ざる長文は、シェル経由ではなくファイル書き込み専用の手段で書く。失敗が「部分的に壊れたファイル」ではなく「何も起きない」形で出るとは限らないので、書いた直後に `node --check` などの構文検査と文字コード確認（`file`）を通す癖をつける。
 
