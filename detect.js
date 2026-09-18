@@ -16,3 +16,56 @@ export function thresholdMask(frame, threshold) {
   }
   return mask;
 }
+
+// 4 近傍の連結成分ラベリング。スタックを使った反復版（再帰しない）。
+export function findBlobs(mask, width, height, minArea) {
+  const n = width * height;
+  const seen = new Uint8Array(n);
+  const stack = new Int32Array(n);
+  const blobs = [];
+
+  for (let start = 0; start < n; start++) {
+    if (!mask[start] || seen[start]) continue;
+
+    let sp = 0;
+    let area = 0, sumX = 0, sumY = 0;
+    let minX = width, maxX = -1, minY = height, maxY = -1;
+    const push = (r) => {
+      if (mask[r] && !seen[r]) { seen[r] = 1; stack[sp++] = r; }
+    };
+
+    push(start);
+    while (sp > 0) {
+      const q = stack[--sp];
+      const x = q % width;
+      const y = (q - x) / width;
+      area++; sumX += x; sumY += y;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (x > 0) push(q - 1);
+      if (x < width - 1) push(q + 1);
+      if (y > 0) push(q - width);
+      if (y < height - 1) push(q + width);
+    }
+
+    if (area >= minArea) {
+      blobs.push({
+        x: sumX / area,
+        y: sumY / area,
+        area,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1,
+      });
+    }
+  }
+
+  blobs.sort((a, b) => b.area - a.area);
+  return blobs;
+}
+
+export function detect(frame, { threshold, minArea }) {
+  const mask = thresholdMask(frame, threshold);
+  return findBlobs(mask, frame.width, frame.height, minArea);
+}

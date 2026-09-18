@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { luminance, thresholdMask } from '../detect.js';
+import { luminance, thresholdMask, findBlobs, detect } from '../detect.js';
 
 // 全画素黒 (alpha 255) のフレームを作り、pixels の [x, y, value] を白系の値にする
 export function makeFrame(width, height, pixels = []) {
@@ -28,4 +28,50 @@ test('thresholdMask はしきい値以上の画素だけ 1 にする', () => {
 test('thresholdMask はしきい値ちょうどを 1 にする', () => {
   const frame = makeFrame(1, 1, [[0, 0, 235]]);
   assert.deepEqual(Array.from(thresholdMask(frame, 235)), [1]);
+});
+
+test('findBlobs は 2x2 の塊を 1 個として重心と面積を返す', () => {
+  const frame = makeFrame(5, 5, [[1, 1], [2, 1], [1, 2], [2, 2]]);
+  const blobs = findBlobs(thresholdMask(frame, 235), 5, 5, 1);
+  assert.equal(blobs.length, 1);
+  assert.deepEqual(blobs[0], { x: 1.5, y: 1.5, area: 4, width: 2, height: 2 });
+});
+
+test('findBlobs は離れた塊を別々に数え、面積の降順に並べる', () => {
+  const frame = makeFrame(8, 3, [[0, 0], [5, 0], [6, 0], [5, 1]]);
+  const blobs = findBlobs(thresholdMask(frame, 235), 8, 3, 1);
+  assert.equal(blobs.length, 2);
+  assert.equal(blobs[0].area, 3);
+  assert.equal(blobs[1].area, 1);
+});
+
+test('findBlobs は斜めに接する画素を別の塊にする (4 近傍)', () => {
+  const frame = makeFrame(3, 3, [[0, 0], [1, 1]]);
+  const blobs = findBlobs(thresholdMask(frame, 235), 3, 3, 1);
+  assert.equal(blobs.length, 2);
+});
+
+test('findBlobs は最小面積未満の塊を捨てる', () => {
+  const frame = makeFrame(4, 1, [[0, 0], [2, 0], [3, 0]]);
+  const blobs = findBlobs(thresholdMask(frame, 235), 4, 1, 2);
+  assert.equal(blobs.length, 1);
+  assert.equal(blobs[0].area, 2);
+});
+
+test('findBlobs は右端と次の行の左端をつなげない', () => {
+  const frame = makeFrame(5, 2, [[4, 0], [0, 1]]);
+  const blobs = findBlobs(thresholdMask(frame, 235), 5, 2, 1);
+  assert.equal(blobs.length, 2);
+});
+
+test('findBlobs は塊が無ければ空配列を返す', () => {
+  const frame = makeFrame(3, 3);
+  assert.deepEqual(findBlobs(thresholdMask(frame, 235), 3, 3, 1), []);
+});
+
+test('detect はしきい値化と塊抽出をつなぐ', () => {
+  const frame = makeFrame(4, 4, [[1, 1, 250], [2, 1, 250], [3, 3, 100]]);
+  const blobs = detect(frame, { threshold: 235, minArea: 1 });
+  assert.equal(blobs.length, 1);
+  assert.equal(blobs[0].area, 2);
 });
