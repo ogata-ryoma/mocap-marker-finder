@@ -1,6 +1,7 @@
 // app.js — 画面の状態遷移、描画ループ、ログ、UI の配線。
 import { openCamera, hasTorch, setTorch, setZoom, zoomRange, closeCamera } from './camera.js';
-import { thresholdMask, findBlobs } from './detect.js';
+import { thresholdMask, findBlobs, diffFrames } from './detect.js';
+import { createBlinker } from './blink.js';
 
 const WORK_WIDTH = 480;
 const MAX_DRAWN = 50;
@@ -183,7 +184,17 @@ function drawBlobs(blobs) {
 }
 
 function currentFrame() {
-  // Task 9 で差分モードの分岐を足す
+  if (state.mode === 'diff') {
+    if (!state.diffFrame) {
+      // 最初の組が揃うまでは生映像だけ出す
+      grabFrame();
+      vctx.drawImage(work, 0, 0);
+      return null;
+    }
+    const f = state.diffFrame;
+    vctx.putImageData(new ImageData(f.data, f.width, f.height), 0, 0);
+    return { frame: f, threshold: state.thresholds.diff };
+  }
   const frame = grabFrame();
   vctx.drawImage(work, 0, 0);
   return { frame, threshold: state.thresholds.normal };
@@ -207,9 +218,43 @@ function loop() {
   }
 }
 
+// ---- モード切替 ----
+function setMode(mode) {
+  if (!state.cam) return;
+  state.mode = mode;
+  state.diffFrame = null;
+  els.modeLabel.textContent = mode === 'diff' ? '差分' : '通常';
+  els.diffBtn.classList.toggle('on', mode === 'diff');
+  els.threshold.value = state.thresholds[mode];
+  els.thresholdOut.value = els.threshold.value;
+
+  state.blinker?.stop();
+  state.blinker = null;
+
+  if (mode === 'diff') {
+    state.blinker = createBlinker({
+      setTorch: (on) => setTorch(state.cam.track, on),
+      grabFrame,
+      onPair: (on, off) => { state.diffFrame = diffFrames(on, off); },
+      onError: (e) => {
+        log(`差分モード中のライト切替に失敗: ${e.message}`, 'err');
+        setMode('normal');
+      },
+    });
+    state.blinker.start();
+    log('差分モード開始 (ライト点滅)');
+  } else {
+    if (!skipTorchGate) {
+      setTorch(state.cam.track, true).catch((e) => log(`ライト再点灯失敗: ${e.message}`, 'err'));
+    }
+    log('通常モード');
+  }
+}
+
 // ---- UI の配線 ----
 els.startBtn.addEventListener('click', start);
 els.stopBtn.addEventListener('click', () => stop());
+els.diffBtn.addEventListener('click', () => setMode(state.mode === 'diff' ? 'normal' : 'diff'));
 els.threshold.addEventListener('input', () => {
   const v = Number(els.threshold.value);
   state.thresholds[state.mode] = v;
