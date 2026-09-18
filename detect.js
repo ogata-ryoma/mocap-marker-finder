@@ -69,3 +69,17 @@ export function detect(frame, { threshold, minArea }) {
   const mask = thresholdMask(frame, threshold);
   return findBlobs(mask, frame.width, frame.height, minArea);
 }
+
+export function diffFrames(on, off) {
+  if (on.width !== off.width || on.height !== off.height) {
+    throw new Error('frame size mismatch');
+  }
+  const n = on.width * on.height;
+  const out = new Uint8ClampedArray(n * 4);
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    const v = Math.max(0, luminance(on.data, i) - luminance(off.data, i));
+    out[i] = out[i + 1] = out[i + 2] = v;
+    out[i + 3] = 255;
+  }
+  return { data: out, width: on.width, height: on.height };
+}

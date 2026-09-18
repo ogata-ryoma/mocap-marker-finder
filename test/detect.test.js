@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { luminance, thresholdMask, findBlobs, detect } from '../detect.js';
+import { luminance, thresholdMask, findBlobs, detect, diffFrames } from '../detect.js';
 
 // 全画素黒 (alpha 255) のフレームを作り、pixels の [x, y, value] を白系の値にする
 export function makeFrame(width, height, pixels = []) {
@@ -74,4 +74,25 @@ test('detect はしきい値化と塊抽出をつなぐ', () => {
   const blobs = detect(frame, { threshold: 235, minArea: 1 });
   assert.equal(blobs.length, 1);
   assert.equal(blobs[0].area, 2);
+});
+
+test('diffFrames は点灯側が明るい画素の差を返し、消灯側が明るい画素は 0 にする', () => {
+  const on = makeFrame(2, 1, [[0, 0, 200], [1, 0, 50]]);
+  const off = makeFrame(2, 1, [[0, 0, 50], [1, 0, 200]]);
+  const diff = diffFrames(on, off);
+  assert.equal(diff.width, 2);
+  assert.equal(diff.height, 1);
+  assert.deepEqual(Array.from(diff.data), [150, 150, 150, 255, 0, 0, 0, 255]);
+});
+
+test('diffFrames はサイズが違えば投げる', () => {
+  assert.throws(() => diffFrames(makeFrame(2, 1), makeFrame(1, 1)), /frame size mismatch/);
+});
+
+test('diffFrames の結果はそのまま detect に渡せる', () => {
+  const on = makeFrame(3, 1, [[1, 0, 255]]);
+  const off = makeFrame(3, 1, [[1, 0, 100]]);
+  const blobs = detect(diffFrames(on, off), { threshold: 80, minArea: 1 });
+  assert.equal(blobs.length, 1);
+  assert.equal(blobs[0].x, 1);
 });
