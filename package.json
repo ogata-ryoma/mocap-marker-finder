@@ -1,0 +1,14 @@
+{
+  "name": "mocap-marker-finder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "iPhone のライトで再帰反射マーカーを光らせて迷子マーカーを探す静的ページ",
+  "scripts": {
+    "test": "node --test",
+    "serve": "node scripts/serve.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
